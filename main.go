@@ -35,10 +35,25 @@ func main() {
 		log.Fatalf("Failed to parse config: %v", err)
 	}
 
+	// Group endpoints by path
+	pathEndpoints := make(map[string][]Endpoint)
 	for _, ep := range config.Endpoints {
-		endpoint := ep // capture for closure
-		http.HandleFunc(endpoint.Path, func(w http.ResponseWriter, r *http.Request) {
-			if endpoint.Method != "" && r.Method != endpoint.Method {
+		pathEndpoints[ep.Path] = append(pathEndpoints[ep.Path], ep)
+	}
+
+	for path, endpoints := range pathEndpoints {
+		eps := endpoints // capture for closure
+		http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			// Find matching endpoint for this method
+			var endpoint *Endpoint
+			for i := range eps {
+				if eps[i].Method == "" || eps[i].Method == r.Method {
+					endpoint = &eps[i]
+					break
+				}
+			}
+
+			if endpoint == nil {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
@@ -58,7 +73,9 @@ func main() {
 
 			json.NewEncoder(w).Encode(endpoint.Response)
 		})
-		log.Printf("Registered: %s %s", endpoint.Method, endpoint.Path)
+		for _, ep := range eps {
+			log.Printf("Registered: %s %s", ep.Method, ep.Path)
+		}
 	}
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
