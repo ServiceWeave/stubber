@@ -1,0 +1,180 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+data:
+  endpoints.json: |
+    {
+      "endpoints": [
+        {
+          "path": "/api/users",
+          "method": "GET",
+          "statusCode": 200,
+          "headers": {"X-Total-Count": "3"},
+          "response": {
+            "users": [
+              {"id": "usr_1a2b3c", "email": "alice@example.com", "name": "Alice Johnson", "role": "admin", "createdAt": "2024-01-15T08:30:00Z"},
+              {"id": "usr_4d5e6f", "email": "bob@example.com", "name": "Bob Smith", "role": "user", "createdAt": "2024-02-20T14:45:00Z"},
+              {"id": "usr_7g8h9i", "email": "carol@example.com", "name": "Carol Davis", "role": "user", "createdAt": "2024-03-10T11:20:00Z"}
+            ],
+            "pagination": {
+              "page": 1,
+              "perPage": 20,
+              "total": 3
+            }
+          }
+        },
+        {
+          "path": "/api/users/me",
+          "method": "GET",
+          "statusCode": 200,
+          "response": {
+            "id": "usr_1a2b3c",
+            "email": "alice@example.com",
+            "name": "Alice Johnson",
+            "role": "admin",
+            "permissions": ["read", "write", "delete", "admin"],
+            "createdAt": "2024-01-15T08:30:00Z",
+            "lastLogin": "2024-12-01T09:15:00Z"
+          }
+        },
+        {
+          "path": "/api/users/usr_1a2b3c",
+          "method": "GET",
+          "statusCode": 200,
+          "response": {
+            "id": "usr_1a2b3c",
+            "email": "alice@example.com",
+            "name": "Alice Johnson",
+            "role": "admin",
+            "department": "Engineering",
+            "createdAt": "2024-01-15T08:30:00Z"
+          }
+        },
+        {
+          "path": "/api/users",
+          "method": "POST",
+          "statusCode": 201,
+          "response": {
+            "id": "usr_new123",
+            "email": "newuser@example.com",
+            "name": "New User",
+            "role": "user",
+            "createdAt": "2024-12-07T10:00:00Z",
+            "message": "User created successfully"
+          }
+        },
+        {
+          "path": "/api/users/usr_1a2b3c",
+          "method": "PUT",
+          "statusCode": 200,
+          "response": {
+            "id": "usr_1a2b3c",
+            "email": "alice@example.com",
+            "name": "Alice Johnson",
+            "role": "admin",
+            "updatedAt": "2024-12-07T10:00:00Z",
+            "message": "User updated successfully"
+          }
+        },
+        {
+          "path": "/api/users/usr_4d5e6f",
+          "method": "DELETE",
+          "statusCode": 200,
+          "response": {
+            "message": "User deleted successfully",
+            "deletedId": "usr_4d5e6f"
+          }
+        },
+        {
+          "path": "/api/auth/login",
+          "method": "POST",
+          "statusCode": 200,
+          "response": {
+            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfMWEyYjNjIiwibmFtZSI6IkFsaWNlIEpvaG5zb24iLCJpYXQiOjE3MzM1NzA0MDB9.mock_signature",
+            "expiresIn": 3600,
+            "tokenType": "Bearer"
+          }
+        },
+        {
+          "path": "/api/auth/logout",
+          "method": "POST",
+          "statusCode": 200,
+          "response": {
+            "message": "Logged out successfully"
+          }
+        },
+        {
+          "path": "/api/users/roles",
+          "method": "GET",
+          "statusCode": 200,
+          "response": {
+            "roles": [
+              {"id": "admin", "name": "Administrator", "permissions": ["read", "write", "delete", "admin"]},
+              {"id": "user", "name": "Standard User", "permissions": ["read", "write"]},
+              {"id": "guest", "name": "Guest", "permissions": ["read"]}
+            ]
+          }
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    app: user-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: ghcr.io/serviceweave/stubber:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "8Mi"
+              cpu: "10m"
+            limits:
+              memory: "32Mi"
+              cpu: "100m"
+      volumes:
+        - name: config
+          configMap:
+            name: user-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 80
+      targetPort: 8080

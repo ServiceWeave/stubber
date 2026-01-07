@@ -5,18 +5,136 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type Endpoint struct {
-	Path       string            `json:"path"`
-	Method     string            `json:"method"`
-	StatusCode int               `json:"statusCode"`
-	Response   any               `json:"response"`
-	Headers    map[string]string `json:"headers"`
+	Path        string            `json:"path"`
+	Method      string            `json:"method"`
+	StatusCode  int               `json:"statusCode"`
+	Response    any               `json:"response"`
+	Headers     map[string]string `json:"headers"`
+	Summary     string            `json:"summary,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
 }
 
 type Config struct {
 	Endpoints []Endpoint `json:"endpoints"`
+	Info      *OpenAPIInfo `json:"info,omitempty"`
+}
+
+type OpenAPIInfo struct {
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version"`
+}
+
+func generateOpenAPISpec(config *Config) map[string]any {
+	info := map[string]any{
+		"title":   "Stubber API",
+		"version": "1.0.0",
+	}
+	if config.Info != nil {
+		if config.Info.Title != "" {
+			info["title"] = config.Info.Title
+		}
+		if config.Info.Description != "" {
+			info["description"] = config.Info.Description
+		}
+		if config.Info.Version != "" {
+			info["version"] = config.Info.Version
+		}
+	}
+
+	paths := make(map[string]any)
+
+	for _, ep := range config.Endpoints {
+		method := strings.ToLower(ep.Method)
+		if method == "" {
+			method = "get"
+		}
+
+		statusCode := ep.StatusCode
+		if statusCode == 0 {
+			statusCode = 200
+		}
+
+		operation := map[string]any{
+			"responses": map[string]any{
+				statusCodeToString(statusCode): map[string]any{
+					"description": "Successful response",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"example": ep.Response,
+						},
+					},
+				},
+			},
+		}
+
+		if ep.Summary != "" {
+			operation["summary"] = ep.Summary
+		}
+		if ep.Description != "" {
+			operation["description"] = ep.Description
+		}
+		if len(ep.Tags) > 0 {
+			operation["tags"] = ep.Tags
+		}
+
+		if _, exists := paths[ep.Path]; !exists {
+			paths[ep.Path] = make(map[string]any)
+		}
+		paths[ep.Path].(map[string]any)[method] = operation
+	}
+
+	// Add built-in endpoints
+	paths["/health"] = map[string]any{
+		"get": map[string]any{
+			"summary": "Health check endpoint",
+			"tags":    []string{"System"},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Service is healthy",
+					"content": map[string]any{
+						"text/plain": map[string]any{
+							"example": "ok",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return map[string]any{
+		"openapi": "3.0.3",
+		"info":    info,
+		"paths":   paths,
+	}
+}
+
+func statusCodeToString(code int) string {
+	switch code {
+	case 200:
+		return "200"
+	case 201:
+		return "201"
+	case 204:
+		return "204"
+	case 400:
+		return "400"
+	case 401:
+		return "401"
+	case 403:
+		return "403"
+	case 404:
+		return "404"
+	case 500:
+		return "500"
+	default:
+		return "200"
+	}
 }
 
 func main() {
@@ -34,6 +152,16 @@ func main() {
 	if err := json.Unmarshal(data, &config); err != nil {
 		log.Fatalf("Failed to parse config: %v", err)
 	}
+
+	// Generate OpenAPI spec
+	openAPISpec := generateOpenAPISpec(&config)
+
+	// Serve OpenAPI spec
+	http.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAPISpec)
+	})
+	log.Println("Registered: GET /openapi.json")
 
 	// Group endpoints by path
 	pathEndpoints := make(map[string][]Endpoint)
