@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -28,6 +29,19 @@ type OpenAPIInfo struct {
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
 	Version     string `json:"version"`
+}
+
+// extractPathParams extracts parameter names from path like /api/users/{id}/posts/{postId}
+func extractPathParams(path string) []string {
+	re := regexp.MustCompile(`\{([^}]+)\}`)
+	matches := re.FindAllStringSubmatch(path, -1)
+	params := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) > 1 {
+			params = append(params, match[1])
+		}
+	}
+	return params
 }
 
 func generateOpenAPISpec(config *Config) map[string]any {
@@ -71,6 +85,23 @@ func generateOpenAPISpec(config *Config) map[string]any {
 					},
 				},
 			},
+		}
+
+		// Extract and add path parameters
+		pathParams := extractPathParams(ep.Path)
+		if len(pathParams) > 0 {
+			params := make([]map[string]any, 0, len(pathParams))
+			for _, paramName := range pathParams {
+				params = append(params, map[string]any{
+					"name":     paramName,
+					"in":       "path",
+					"required": true,
+					"schema": map[string]any{
+						"type": "string",
+					},
+				})
+			}
+			operation["parameters"] = params
 		}
 
 		if ep.Summary != "" {

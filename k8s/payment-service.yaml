@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-service-config
+  namespace: demo
+data:
+  endpoints.json: |
+    {
+      "info": {
+        "title": "Payment Service API",
+        "description": "Mock payment processing service for ecommerce platform",
+        "version": "1.0.0"
+      },
+      "endpoints": [
+        {
+          "path": "/api/payments",
+          "method": "POST",
+          "statusCode": 201,
+          "summary": "Process payment",
+          "tags": ["Payments"],
+          "response": {
+            "paymentId": "PAY-2024-001",
+            "status": "completed",
+            "amount": 259.76,
+            "currency": "USD",
+            "method": "credit_card",
+            "transactionId": "txn_1234567890",
+            "timestamp": "2024-01-20T09:16:00Z"
+          }
+        },
+        {
+          "path": "/api/payments/{id}",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "Get payment details",
+          "tags": ["Payments"],
+          "response": {
+            "paymentId": "PAY-2024-001",
+            "orderId": "ORD-2024-003",
+            "status": "completed",
+            "amount": 259.76,
+            "currency": "USD",
+            "method": "credit_card",
+            "cardLast4": "4242",
+            "cardBrand": "visa",
+            "transactionId": "txn_1234567890",
+            "createdAt": "2024-01-20T09:16:00Z"
+          }
+        },
+        {
+          "path": "/api/refunds",
+          "method": "POST",
+          "statusCode": 200,
+          "summary": "Process refund",
+          "tags": ["Refunds"],
+          "response": {
+            "refundId": "REF-2024-001",
+            "paymentId": "PAY-2024-001",
+            "status": "processing",
+            "amount": 259.76,
+            "reason": "customer_request",
+            "estimatedCompletion": "2024-01-23T09:16:00Z"
+          }
+        },
+        {
+          "path": "/api/refunds/{id}",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "Get refund status",
+          "tags": ["Refunds"],
+          "response": {
+            "refundId": "REF-2024-001",
+            "paymentId": "PAY-2024-001",
+            "status": "completed",
+            "amount": 259.76
+          }
+        },
+        {
+          "path": "/api/payment-methods",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "List saved payment methods",
+          "tags": ["Payment Methods"],
+          "response": {
+            "methods": [
+              {"id": "pm-001", "type": "credit_card", "brand": "visa", "last4": "4242", "expiry": "12/25", "isDefault": true},
+              {"id": "pm-002", "type": "credit_card", "brand": "mastercard", "last4": "5555", "expiry": "08/26", "isDefault": false},
+              {"id": "pm-003", "type": "paypal", "email": "user@example.com", "isDefault": false}
+            ]
+          }
+        },
+        {
+          "path": "/api/payment-methods",
+          "method": "POST",
+          "statusCode": 201,
+          "summary": "Add payment method",
+          "tags": ["Payment Methods"],
+          "response": {
+            "id": "pm-004",
+            "type": "credit_card",
+            "brand": "amex",
+            "last4": "1234",
+            "message": "Payment method added successfully"
+          }
+        },
+        {
+          "path": "/api/payment-methods/{id}",
+          "method": "DELETE",
+          "statusCode": 200,
+          "summary": "Remove payment method",
+          "tags": ["Payment Methods"],
+          "response": {
+            "message": "Payment method removed successfully"
+          }
+        },
+        {
+          "path": "/api/payments/validate",
+          "method": "POST",
+          "statusCode": 200,
+          "summary": "Validate payment details",
+          "tags": ["Payments"],
+          "response": {
+            "valid": true,
+            "cardBrand": "visa",
+            "cardCountry": "US"
+          }
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-service
+        image: ghcr.io/serviceweave/stubber:main
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "8Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "100m"
+      volumes:
+      - name: config
+        configMap:
+          name: payment-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: demo
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 80
+    targetPort: 8080

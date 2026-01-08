@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: demo
+data:
+  endpoints.json: |
+    {
+      "info": {
+        "title": "Product Service API",
+        "description": "Mock product catalog service for ecommerce platform",
+        "version": "1.0.0"
+      },
+      "endpoints": [
+        {
+          "path": "/api/products",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "List all products",
+          "description": "Returns a paginated list of products",
+          "tags": ["Products"],
+          "response": {
+            "products": [
+              {"id": "prod-001", "name": "Wireless Headphones", "price": 79.99, "category": "Electronics", "stock": 150, "rating": 4.5},
+              {"id": "prod-002", "name": "Running Shoes", "price": 129.99, "category": "Sports", "stock": 85, "rating": 4.7},
+              {"id": "prod-003", "name": "Coffee Maker", "price": 49.99, "category": "Home", "stock": 200, "rating": 4.2},
+              {"id": "prod-004", "name": "Laptop Stand", "price": 34.99, "category": "Electronics", "stock": 300, "rating": 4.6},
+              {"id": "prod-005", "name": "Yoga Mat", "price": 24.99, "category": "Sports", "stock": 500, "rating": 4.8}
+            ],
+            "pagination": {"page": 1, "perPage": 10, "total": 5, "totalPages": 1}
+          }
+        },
+        {
+          "path": "/api/products/{id}",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "Get product by ID",
+          "tags": ["Products"],
+          "response": {
+            "id": "prod-001",
+            "name": "Wireless Headphones",
+            "description": "Premium noise-cancelling wireless headphones with 30-hour battery life",
+            "price": 79.99,
+            "category": "Electronics",
+            "stock": 150,
+            "rating": 4.5,
+            "images": ["https://example.com/images/headphones-1.jpg", "https://example.com/images/headphones-2.jpg"],
+            "specifications": {"brand": "AudioTech", "color": "Black", "weight": "250g", "warranty": "2 years"}
+          }
+        },
+        {
+          "path": "/api/products",
+          "method": "POST",
+          "statusCode": 201,
+          "summary": "Create a new product",
+          "tags": ["Products"],
+          "response": {
+            "id": "prod-006",
+            "name": "New Product",
+            "message": "Product created successfully"
+          }
+        },
+        {
+          "path": "/api/products/{id}",
+          "method": "PUT",
+          "statusCode": 200,
+          "summary": "Update a product",
+          "tags": ["Products"],
+          "response": {"message": "Product updated successfully"}
+        },
+        {
+          "path": "/api/products/{id}",
+          "method": "DELETE",
+          "statusCode": 200,
+          "summary": "Delete a product",
+          "tags": ["Products"],
+          "response": {"message": "Product deleted successfully"}
+        },
+        {
+          "path": "/api/products/categories",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "List all categories",
+          "tags": ["Categories"],
+          "response": {
+            "categories": [
+              {"id": "cat-001", "name": "Electronics", "productCount": 45},
+              {"id": "cat-002", "name": "Sports", "productCount": 32},
+              {"id": "cat-003", "name": "Home", "productCount": 28},
+              {"id": "cat-004", "name": "Fashion", "productCount": 56},
+              {"id": "cat-005", "name": "Books", "productCount": 120}
+            ]
+          }
+        },
+        {
+          "path": "/api/products/search",
+          "method": "GET",
+          "statusCode": 200,
+          "summary": "Search products",
+          "tags": ["Products"],
+          "response": {
+            "query": "headphones",
+            "results": [
+              {"id": "prod-001", "name": "Wireless Headphones", "price": 79.99, "relevance": 0.95}
+            ],
+            "totalResults": 1
+          }
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      containers:
+      - name: product-service
+        image: ghcr.io/serviceweave/stubber:main
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "8Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "100m"
+      volumes:
+      - name: config
+        configMap:
+          name: product-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: demo
+spec:
+  selector:
+    app: product-service
+  ports:
+  - port: 80
+    targetPort: 8080
