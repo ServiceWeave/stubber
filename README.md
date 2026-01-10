@@ -1,11 +1,11 @@
 # Stubber
 
-A lightweight mock API server that serves configurable JSON responses.
+An extremely lightweight mock API server that serves configurable JSON responses. Runs on just 16MB of memory.
 
 ## Quick Start
 
 ```bash
-docker run -v ./config:/config -p 8080:8080 ghcr.io/your-org/stubber:latest
+docker run -v ./config:/config -p 8080:8080 ghcr.io/serviceweave/stubber:latest
 ```
 
 ## Configuration
@@ -61,7 +61,7 @@ spec:
     spec:
       containers:
         - name: stubber
-          image: ghcr.io/your-org/stubber:latest
+          image: ghcr.io/serviceweave/stubber:latest
           ports:
             - containerPort: 8080
           volumeMounts:
